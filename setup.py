@@ -10,5 +10,5 @@ setup(
     version='0.1',
     license='',
     description='A package that allows to find the risk budgeting portfolio for different risk measures given a sample of asset returns using stochastic gradient descent.',
-    long_description=open('README.txt').read(),
+    long_description=open('README.md').read(),
 )
