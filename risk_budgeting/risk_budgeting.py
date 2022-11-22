@@ -150,7 +150,7 @@ class RiskBudgeting:
 
         # Set step size coefficients for y and t
         if eta_0_y is None:
-            eta_0_y = 50 / d
+            eta_0_y = 360 / d
         if eta_0_t is None:
             eta_0_t = .5
 
