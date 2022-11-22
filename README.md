@@ -23,7 +23,7 @@ pip install git+https://github.com/rengo-python/stochastic_rb.git
 from risk_budgeting import RiskBudgeting
 
 # define the problem
-rb = RiskBudgeting(risk_measure='volatility', budgets='ERC')
+rb = RiskBudgeting(risk_measure='expected_shortfall', alpha=0.95, budgets='ERC')
 
 # solve the defined problem for a given array of asset returns X
 rb.solve(X)
