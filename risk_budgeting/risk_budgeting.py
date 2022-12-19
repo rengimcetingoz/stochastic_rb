@@ -1,7 +1,11 @@
 import numpy as np
 from scipy.stats import norm
 
+from typeguard import typechecked
 
+from risk_budgeting.business.model.riskbudgeting import RiskBudgetingParams
+
+@typechecked
 class RiskBudgeting:
     """
 
@@ -51,28 +55,17 @@ class RiskBudgeting:
         If 'store' parameter in solve() function is True, store t values along the optimization path.
         
     """
+    ys = None
+    ts = None
+    success = None
+    x = None
 
     def __init__(self,
-                 risk_measure='volatility',
-                 budgets='ERC',
-                 expectation=False,
-                 beta=1.00,
-                 delta=1.00,
-                 alpha=None,
-                 gamma=None
+                 params : RiskBudgetingParams.__annotations__
                  ):
-
-        self.risk_measure = risk_measure
-        self.budgets = budgets
-        self.expectation = expectation
-        self.beta = beta
-        self.delta = delta
-        self.alpha = alpha
-        self.gamma = gamma
-        self.ys = None
-        self.ts = None
-        self.success = None
-        self.x = None
+        #self.alpha = alpha
+        #self.gamma = gamma
+        self.rb = RiskBudgetingParams(**params)
 
     def solve(self, X, epochs=None, minibatch_size=128, y_init=None, t_init=None, eta_0_y=None, eta_0_t=None, c=0.65,
               polyak_ruppert=0.2, discretize=None, proj_y=None, store=False):
