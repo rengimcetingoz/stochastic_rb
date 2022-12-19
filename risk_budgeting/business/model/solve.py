@@ -11,24 +11,23 @@ class Discretize(BaseModel):
 
 class SolveParams(BaseModel):
     X : np.ndarray 
-    epochs: Optional[int]
-    minibatch_size : Optional[int]
-    y_init : Optional[np.ndarray]
-    t_init : Optional[float]
-    eta_0_y : Optional[float]
-    eta_0_t : Optional[float]
-    c : Optional[float]
-    polyak_ruppert:Optional[float]
-    discretize:Optional[Discretize]
-    proj_y:Optional[np.ndarray]
-    store:Optional[bool]
-    y_sum : np.ndarray
-    sum_k_first : int
-    k : int
-    y:Optional[np.ndarray]
-    n : int
-    d : int
-    k : int
+    epochs: int = None
+    minibatch_size : int= 128
+    y_init : np.ndarray= None
+    t_init : float= None
+    eta_0_y : float= None
+    eta_0_t : float= None
+    c : float= 0.65
+    polyak_ruppert:float= 0.2
+    discretize:Discretize= None
+    proj_y:np.ndarray= None
+    y_sum : np.ndarray= None
+    sum_k_first : int= None
+    k : int= None
+    y:np.ndarray= None
+    n : int= None
+    d : int= None
+    k : int= None
 
     class Config:
         arbitrary_types_allowed = True

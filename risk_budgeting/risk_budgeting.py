@@ -1,12 +1,15 @@
 import numpy as np
-from scipy.stats import norm
-
 from typeguard import typechecked
 
 from risk_budgeting.business.model.riskbudgeting import RiskBudgetingParams
 from risk_budgeting.business.model.solve import SolveParams
-from risk_budgeting.utils.exceptions import BetaSizeNotCorrect, BudgetsValueSizeNotCorrect
-from risk_budgeting.engine import risk_measure 
+from risk_budgeting.engine import risk_measure
+from risk_budgeting.utils.exceptions import (
+    BetaSizeNotCorrect,
+    BudgetsValueSizeNotCorrect,
+)
+
+
 @typechecked
 class RiskBudgeting:
     """
@@ -55,20 +58,73 @@ class RiskBudgeting:
 
     ts: numpy.ndarray, default to None.
         If 'store' parameter in solve() function is True, store t values along the optimization path.
-        
+
     """
+
     ys = None
     ts = None
     success = None
     x = None
 
-    def __init__(self,
-                 params : RiskBudgetingParams.__annotations__
-                 ):
-        self.rb_params = RiskBudgetingParams(**params)
+    def __init__(self, rb_params: RiskBudgetingParams.__annotations__):
+        self.rb_params = RiskBudgetingParams(**rb_params)
 
-    def solve(self, X, epochs=None, minibatch_size=128, y_init=None, t_init=None, eta_0_y=None, eta_0_t=None, c=0.65,
-              polyak_ruppert=0.2, discretize=None, proj_y=None, store=False, **kwargs):
+    def __settings(self) -> None:
+        # Store along the optimization path
+        self.solve_params.k = 0
+
+        self.solve_params.n, self.solve_params.d = self.solve_params.X.shape
+
+        # Set budgets if ERC
+        if self.rb_params.budgets.name == "ERC":
+            self.rb_params.budgets.value = (
+                np.ones(self.solve_params.d) / self.solve_params.d
+            )
+
+        if (
+            False in self.rb_params.budgets.value > 0
+            or True in self.rb_params.budgets.value >= 0
+        ):
+            raise BudgetsValueSizeNotCorrect(self.rb_params.budgets.value)
+
+        # Choose number of epochs based on sample size
+        if self.solve_params.epochs is None:
+            self.solve_params.epochs = int(2e06 / self.solve_params.n)
+
+        # Initialize y
+        if self.solve_params.y_init is None:
+            self.solve_params.y = self.rb_params.budgets.value / np.std(
+                self.solve_params.X, axis=0
+            )
+        else:
+            self.solve_params.y = self.solve_params.y_init
+
+        if self.solve_params.proj_y is None:
+            self.solve_params.proj_y = self.solve_params.y
+
+        # Set step size coefficients for y and t
+        if self.solve_params.eta_0_y is None:
+            self.solve_params.eta_0_y = 360 / self.solve_params.d
+        if self.solve_params.eta_0_t is None:
+            self.solve_params.eta_0_t = 0.5
+
+        if self.rb_params.beta <= 0:
+            raise BetaSizeNotCorrect(self.rb_params.beta)
+
+        # Needed for Polyak-Ruppert averaging
+        self.solve_params.y_sum = np.zeros(self.solve_params.d)
+        self.solve_params.sum_k_first = int(
+            (1 - self.solve_params.polyak_ruppert)
+            * (
+                self.solve_params.epochs
+                * self.solve_params.n
+                / self.solve_params.minibatch_size
+            )
+        )
+
+    def solve(
+        self, params_solver: SolveParams.__annotations__, store: bool = False, **kwargs
+    ) -> np.ndarray:
 
         """
 
@@ -117,73 +173,18 @@ class RiskBudgeting:
             store y and t along the optimization path.
 
         """
+        # TODO : Update, maybe remove all parameters from method and rename all params, not very explicite
+        self.solve_params = SolveParams(**params_solver)
+        self.__settings()
 
-        n, d = X.shape
+        if self.rb_params.risk_measure == "volatility":
+            solve_params_update, t_, y_ = risk_measure.volatility_method(
+                self.rb_params, self.solve_params, store=store
+            )
 
-        # Set budgets if ERC
-        if self.rb_params.budgets.name == 'ERC':
-            self.rb_params.budgets.value = np.ones(d) / d
+        # elif self.rb_params.risk_measure == 'median_absolute_deviation':
+        #     solve_params_update, t_, y_ = risk_measure.median_absolute_deviation_method(self.rb_params, self.solve_params)
 
-        if False in self.rb_params.budgets.value > 0 or True in self.rb_params.budgets.value >= 0:
-            raise BudgetsValueSizeNotCorrect(self.rb_params.budgets.value)
-        
-        # Choose number of epochs based on sample size
-        if epochs is None:
-            epochs = int(2e06 / n)
-
-        # Initialize y
-        if y_init is None:
-            y = self.rb_params.budgets.value / np.std(X, axis=0)
-        else:
-            y = y_init
-
-        if proj_y is None:
-            proj_y = y
-
-        # Set step size coefficients for y and t
-        if eta_0_y is None:
-            eta_0_y = 360 / d
-        if eta_0_t is None:
-            eta_0_t = .5
-
-        if self.rb_params.beta <= 0:
-            raise BetaSizeNotCorrect(self.rb_params.beta)
-
-        # Needed for Polyak-Ruppert averaging
-        y_sum = np.zeros(d)
-        sum_k_first = int((1 - polyak_ruppert) * (epochs * n / minibatch_size))
-
-        # Store along the optimization path
-        k = 0
-        #TODO : Update, maybe remove all parameters from method and rename all params, not very explicite
-        solve_params = SolveParams(**{
-                "X" : X,
-                "epochs": epochs,
-                "minibatch_size" : minibatch_size,
-                "y_init":y_init,
-                "t_init":t_init,
-                "eta_0_y":eta_0_y,
-                "eta_0_t":eta_0_t,
-                "c":c,
-                "polyak_ruppert":polyak_ruppert,
-                "discretize":discretize,
-                "proj_y":proj_y,
-                "store":store,
-                "y_sum" : y_sum,
-                "sum_k_first" : sum_k_first,
-                "k" : k,
-                'y' : y,
-                "n" : n,
-                "d" : d,
-                "k" : k
-        })
-        
-        if self.rb_params.risk_measure == 'volatility':
-            solve_params_update, t_, y_ = risk_measure.volatility_method(self.rb_params, solve_params)
- 
-        elif self.rb_params.risk_measure == 'median_absolute_deviation':
-            solve_params_update, t_, y_ = risk_measure.median_absolute_deviation_method(self.rb_params, solve_params)
-       
         # elif self.rb_params.risk_measure == 'expected_shortfall':
         #     # Initialize t
         #     if t_init is None:
@@ -315,12 +316,18 @@ class RiskBudgeting:
         # else:
         #     raise ValueError('The given risk measure is not applicable.')
 
-        y_sgd = solve_params_update.y_sum / int(solve_params_update.polyak_ruppert * (solve_params_update.epochs * solve_params_update.n / solve_params_update.minibatch_size))
-        theta_sgd = y_sgd / y_sgd.sum()
+        y_sgd = solve_params_update.y_sum / int(
+            solve_params_update.polyak_ruppert
+            * (
+                solve_params_update.epochs
+                * solve_params_update.n
+                / solve_params_update.minibatch_size
+            )
+        )
+        self.solution = y_sgd / y_sgd.sum()
 
-        self.x = theta_sgd
-
-        #TODO : Create specific Method // Don't mix solver params and matplotlib
+        # TODO : Create specific Method // Don't mix solver params and matplotlib
         if store:
             self.ys = y_
             self.ts = t_
+        return self.solution

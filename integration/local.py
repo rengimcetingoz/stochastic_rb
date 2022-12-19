@@ -15,19 +15,19 @@ np.random.seed(0)
 X = data.values
 
 # we define our risk budgeting problem
-rb = RiskBudgeting(params = {
-    "risk_measure" : 'volatility',
-    "budgets" : {
-        "name" : "CUSTOM",
-        "value": np.array([0.5, 0.3, 0.2])}})
-
-# rb = RiskBudgeting(params = {
+# rb = RiskBudgeting(rb_params = {
 #     "risk_measure" : 'volatility',
 #     "budgets" : {
-#         "name" : 'ERC'}})
+#         "name" : "CUSTOM",
+#         "value": np.array([0.5, 0.3, 0.2])}})
+
+rb = RiskBudgeting(rb_params = {
+    "risk_measure" : 'volatility',
+    "budgets" : {
+        "name" : 'ERC'}})
 
 # rb.solve(X)
 # print(rb.x)
 
-rb.solve(X, store=True)
-print(plt.plot(rb.ys))
+rb.solve(params_solver = {"X" : X}, store=True)
+print(rb.solution)
