@@ -2,21 +2,21 @@ from pydantic import BaseModel, StrictBool, StrictFloat, StrictStr, validator
 import numpy as np
 
 from risk_budgeting.config._settings import RISK_MEASURE, BUDGETS
-from risk_budgeting.utils.exceptions import RiskMeasureNotDefined, BudgetsNotDefined
+from risk_budgeting.utils.exceptions import RiskMeasureNotDefined, BudgetsNameNotRecognize, BudgetsNameMissing
 
 
 class Budgets(BaseModel):
-    name : StrictStr ='ERC'
+    name : StrictStr = None
     value : np.ndarray = np.zeros(shape=(0, 0))
     
-    @validator('name')
-    def check_budgets(cls, v, values, **kwargs):
-        if v not in BUDGETS: raise BudgetsNotDefined(v)
+    @validator('name', pre=True, always=True)
+    def check_budgets(cls, v):
+        if v is None : raise BudgetsNameMissing()
+        if v.upper() not in BUDGETS: raise BudgetsNameNotRecognize(v)
         return v
-    
+
     class Config:
         arbitrary_types_allowed = True
-    
 
 class RiskBudgetingParams(BaseModel):
     risk_measure : StrictStr ='volatility'

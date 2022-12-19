@@ -4,8 +4,9 @@ from scipy.stats import norm
 from typeguard import typechecked
 
 from risk_budgeting.business.model.riskbudgeting import RiskBudgetingParams
+from risk_budgeting.business.model.solve import SolveParams
 from risk_budgeting.utils.exceptions import BetaSizeNotCorrect, BudgetsValueSizeNotCorrect
-
+from risk_budgeting.engine import risk_measure 
 @typechecked
 class RiskBudgeting:
     """
@@ -64,10 +65,10 @@ class RiskBudgeting:
     def __init__(self,
                  params : RiskBudgetingParams.__annotations__
                  ):
-        self.rb = RiskBudgetingParams(**params)
+        self.rb_params = RiskBudgetingParams(**params)
 
     def solve(self, X, epochs=None, minibatch_size=128, y_init=None, t_init=None, eta_0_y=None, eta_0_t=None, c=0.65,
-              polyak_ruppert=0.2, discretize=None, proj_y=None, store=False):
+              polyak_ruppert=0.2, discretize=None, proj_y=None, store=False, **kwargs):
 
         """
 
@@ -120,11 +121,11 @@ class RiskBudgeting:
         n, d = X.shape
 
         # Set budgets if ERC
-        if self.rb.budgets.name == 'ERC':
-            self.rb.budgets.value = np.ones(d) / d
+        if self.rb_params.budgets.name == 'ERC':
+            self.rb_params.budgets.value = np.ones(d) / d
 
-        if False in self.rb.budgets.value > 0 or True in self.rb.budgets.value >= 0:
-            raise BudgetsValueSizeNotCorrect(self.rb.budgets.value)
+        if False in self.rb_params.budgets.value > 0 or True in self.rb_params.budgets.value >= 0:
+            raise BudgetsValueSizeNotCorrect(self.rb_params.budgets.value)
         
         # Choose number of epochs based on sample size
         if epochs is None:
@@ -132,7 +133,7 @@ class RiskBudgeting:
 
         # Initialize y
         if y_init is None:
-            y = self.rb.budgets.value / np.std(X, axis=0)
+            y = self.rb_params.budgets.value / np.std(X, axis=0)
         else:
             y = y_init
 
@@ -145,101 +146,49 @@ class RiskBudgeting:
         if eta_0_t is None:
             eta_0_t = .5
 
-        if self.rb.beta <= 0:
-            raise BetaSizeNotCorrect(self.rb.beta)
+        if self.rb_params.beta <= 0:
+            raise BetaSizeNotCorrect(self.rb_params.beta)
 
         # Needed for Polyak-Ruppert averaging
         y_sum = np.zeros(d)
         sum_k_first = int((1 - polyak_ruppert) * (epochs * n / minibatch_size))
 
         # Store along the optimization path
-        y_ = [y]
         k = 0
-
-        # if self.rb.risk_measure == 'volatility':
-        #     # Initialize t
-        #     if t_init is None:
-        #         t = np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
-        #     else:
-        #         t = t_init
-        #     t_ = [t]
-        #     for s in range(epochs):
-        #         np.random.shuffle(X)
-        #         for i in range(0, n, minibatch_size):
-
-        #             # Mini-batch
-        #             x = X[i:i + minibatch_size]
-
-        #             # Step size schedule
-        #             eta_t = eta_0_t / (1 + k) ** c
-        #             eta_y = eta_0_y / (1 + k) ** c
-
-        #             # Gradient
-        #             r = np.dot(y, x.T)
-        #             grad_t = np.mean(self.rb.beta * -2 * (r - t))
-        #             grad_y = np.mean(self.rb.beta *
-        #                              2 * (r - t).reshape((x.shape[0], 1)) * x - self.rb.budgets / y -
-        #                              self.rb.delta * self.rb.expectation * x, axis=0)
-
-        #             # Descent
-        #             t = t - eta_t * grad_t
-        #             y = y - eta_y * grad_y
-        #             y = np.where(y <= 0, proj_y, y)
-
-        #             if k + 1 > sum_k_first:
-        #                 y_sum += y
-
-        #             if store:
-        #                 y_.append(y)
-        #                 t_.append(t)
-
-        #             k += 1
-
-        # elif self.rb.risk_measure == 'median_absolute_deviation':
-        #     # Initialize t
-        #     if t_init is None:
-        #         t = np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
-        #     else:
-        #         t = t_init
-        #     t_ = [t]
-        #     for s in range(epochs):
-        #         np.random.shuffle(X)
-        #         for i in range(0, n, minibatch_size):
-
-        #             # Mini-batch
-        #             x = X[i:i + minibatch_size]
-
-        #             # Step size schedule
-        #             eta_t = eta_0_t / (1 + k) ** c
-        #             eta_y = eta_0_y / (1 + k) ** c
-
-        #             # Gradient
-        #             indicator_pos = (np.dot(y, x.T) - t >= 0).reshape((x.shape[0], 1))
-        #             indicator_neg = 1 - indicator_pos
-        #             grad_t = np.mean(self.rb.beta * -1 * indicator_pos + indicator_neg)
-        #             grad_y = np.mean(self.rb.beta * x * (
-        #                     indicator_pos - indicator_neg) - self.rb.budgets / y - self.rb.delta * self.rb.expectation * x,
-        #                              axis=0)
-
-        #             # Descent
-        #             t = t - eta_t * grad_t
-        #             y = y - eta_y * grad_y
-        #             y = np.where(y <= 0, proj_y, y)
-
-        #             if k + 1 > sum_k_first:
-        #                 y_sum += y
-
-        #             if store:
-        #                 y_.append(y)
-        #                 t_.append(t)
-
-        #             k += 1
-
-        # elif self.rb.risk_measure == 'expected_shortfall':
+        #TODO : Update, maybe remove all parameters from method and rename all params, not very explicite
+        solve_params = SolveParams(**{
+                "X" : X,
+                "epochs": epochs,
+                "minibatch_size" : minibatch_size,
+                "y_init":y_init,
+                "t_init":t_init,
+                "eta_0_y":eta_0_y,
+                "eta_0_t":eta_0_t,
+                "c":c,
+                "polyak_ruppert":polyak_ruppert,
+                "discretize":discretize,
+                "proj_y":proj_y,
+                "store":store,
+                "y_sum" : y_sum,
+                "sum_k_first" : sum_k_first,
+                "k" : k,
+                'y' : y,
+                "n" : n,
+                "d" : d,
+                "k" : k
+        })
+        
+        if self.rb_params.risk_measure == 'volatility':
+            solve_params_update, t_, y_ = risk_measure.volatility_method(self.rb_params, solve_params)
+ 
+        elif self.rb_params.risk_measure == 'median_absolute_deviation':
+            solve_params_update, t_, y_ = risk_measure.median_absolute_deviation_method(self.rb_params, solve_params)
+       
+        # elif self.rb_params.risk_measure == 'expected_shortfall':
         #     # Initialize t
         #     if t_init is None:
         #         t = -np.dot(y, np.mean(X, axis=0)) + np.dot(np.dot(y, np.cov(X, rowvar=False)), y) * norm.ppf(
-        #             self.rb.alpha)
+        #             self.rb_params.alpha)
         #     else:
         #         t = t_init
         #     t_ = [t]
@@ -256,10 +205,10 @@ class RiskBudgeting:
 
         #             # Gradient
         #             indicator = (-np.dot(y, x.T) - t >= 0).reshape((x.shape[0], 1))
-        #             grad_t = np.mean(self.rb.beta * 1 - (1 / (1 - self.rb.alpha)) * indicator)
-        #             grad_y = np.mean(self.rb.beta *
+        #             grad_t = np.mean(self.rb_params.beta * 1 - (1 / (1 - self.rb_params.alpha)) * indicator)
+        #             grad_y = np.mean(self.rb_params.beta *
         #                              (-x / (
-        #                                      1 - self.rb.alpha)) * indicator - self.rb.budgets / y + self.rb.delta * self.rb.expectation * x,
+        #                                      1 - self.rb_params.alpha)) * indicator - self.rb_params.budgets / y + self.rb_params.delta * self.rb_params.expectation * x,
         #                              axis=0)
 
         #             # Descent
@@ -276,12 +225,12 @@ class RiskBudgeting:
 
         #             k += 1
 
-        # elif self.rb.risk_measure == 'power_spectral_risk_measure':
+        # elif self.rb_params.risk_measure == 'power_spectral_risk_measure':
         #     # Initialize t
         #     if discretize is None:
         #         discretize = {'step': 50, 'bounds': (.5, .99)}
         #     u = np.linspace(discretize['bounds'][0], discretize['bounds'][1], discretize['step'])
-        #     w = (self.rb.gamma * u ** (self.rb.gamma - 1))  # power law
+        #     w = (self.rb_params.gamma * u ** (self.rb_params.gamma - 1))  # power law
         #     delta_w = np.diff(w)
         #     u = u[1:]
         #     if t_init is None:
@@ -302,10 +251,10 @@ class RiskBudgeting:
 
         #             # Gradient
         #             indicator = (-np.dot(y, x.T)[:, None] - t >= 0)
-        #             grad_t = np.mean(self.rb.beta * delta_w * (1 - u) - delta_w * indicator, axis=0)
-        #             grad_y = np.mean(self.rb.beta *
+        #             grad_t = np.mean(self.rb_params.beta * delta_w * (1 - u) - delta_w * indicator, axis=0)
+        #             grad_y = np.mean(self.rb_params.beta *
         #                              -np.dot(delta_w, indicator.T).reshape(
-        #                                  (x.shape[0], 1)) * x - self.rb.budgets / y + self.rb.delta * self.rb.expectation * x,
+        #                                  (x.shape[0], 1)) * x - self.rb_params.budgets / y + self.rb_params.delta * self.rb_params.expectation * x,
         #                              axis=0)
 
         #             # Descent
@@ -322,7 +271,7 @@ class RiskBudgeting:
 
         #             k += 1
 
-        # elif self.rb.risk_measure == 'variantile':
+        # elif self.rb_params.risk_measure == 'variantile':
         #     # Initialize t
         #     if t_init is None:
         #         t = -np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
@@ -342,12 +291,12 @@ class RiskBudgeting:
         #             indicator_pos = (loss - t >= 0).reshape((x.shape[0], 1))
         #             indicator_neg = (loss - t < 0).reshape((x.shape[0], 1))
         #             grad_t = np.mean(
-        #                 self.rb.beta * -2 * self.rb.alpha * (loss - t) * indicator_pos + -2 * (1 - self.rb.alpha) * (
+        #                 self.rb_params.beta * -2 * self.rb_params.alpha * (loss - t) * indicator_pos + -2 * (1 - self.rb_params.alpha) * (
         #                         loss - t) * indicator_neg)
-        #             grad_y = np.mean(self.rb.beta *
-        #                              -2 * self.rb.alpha * (loss - t).reshape((x.shape[0], 1)) * x * indicator_pos + -2 * (
-        #                                      1 - self.rb.alpha) * (loss - t).reshape(
-        #                 (x.shape[0], 1)) * x * indicator_neg - self.rb.budgets / y, axis=0)
+        #             grad_y = np.mean(self.rb_params.beta *
+        #                              -2 * self.rb_params.alpha * (loss - t).reshape((x.shape[0], 1)) * x * indicator_pos + -2 * (
+        #                                      1 - self.rb_params.alpha) * (loss - t).reshape(
+        #                 (x.shape[0], 1)) * x * indicator_neg - self.rb_params.budgets / y, axis=0)
 
         #             # Descent
         #             t = t - eta_t * grad_t
@@ -366,11 +315,12 @@ class RiskBudgeting:
         # else:
         #     raise ValueError('The given risk measure is not applicable.')
 
-        # y_sgd = y_sum / int(polyak_ruppert * (epochs * n / minibatch_size))
-        # theta_sgd = y_sgd / y_sgd.sum()
+        y_sgd = solve_params_update.y_sum / int(solve_params_update.polyak_ruppert * (solve_params_update.epochs * solve_params_update.n / solve_params_update.minibatch_size))
+        theta_sgd = y_sgd / y_sgd.sum()
 
-        # self.x = theta_sgd
+        self.x = theta_sgd
 
-        # if store:
-        #     self.ys = y_
-        #     self.ts = t_
+        #TODO : Create specific Method // Don't mix solver params and matplotlib
+        if store:
+            self.ys = y_
+            self.ts = t_
