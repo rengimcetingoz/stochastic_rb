@@ -14,4 +14,8 @@ np.random.seed(0)
 X = data.values
 
 # we define our risk budgeting problem
-rb = RiskBudgeting(params = {"risk_measure" : 'volatility',"budgets" : 'ERC'})
+rb = RiskBudgeting(params = {
+    "risk_measure" : 'volatility',
+    "budgets" : {"name" : 'ERC'}})
+# we solve the defined problem using given sample of asset returns
+rb.solve(X)

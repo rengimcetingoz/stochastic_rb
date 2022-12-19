@@ -4,6 +4,7 @@ from scipy.stats import norm
 from typeguard import typechecked
 
 from risk_budgeting.business.model.riskbudgeting import RiskBudgetingParams
+from risk_budgeting.utils.exceptions import BetaSizeNotCorrect, BudgetsValueSizeNotCorrect
 
 @typechecked
 class RiskBudgeting:
@@ -63,8 +64,6 @@ class RiskBudgeting:
     def __init__(self,
                  params : RiskBudgetingParams.__annotations__
                  ):
-        #self.alpha = alpha
-        #self.gamma = gamma
         self.rb = RiskBudgetingParams(**params)
 
     def solve(self, X, epochs=None, minibatch_size=128, y_init=None, t_init=None, eta_0_y=None, eta_0_t=None, c=0.65,
@@ -121,20 +120,19 @@ class RiskBudgeting:
         n, d = X.shape
 
         # Set budgets if ERC
-        if type(self.budgets) == str:
-            if self.budgets == 'ERC':
-                self.budgets = np.ones(d) / d
+        if self.rb.budgets.name == 'ERC':
+            self.rb.budgets.value = np.ones(d) / d
 
-        if False in self.budgets > 0 or True in self.budgets >= 0:
-            raise ValueError('The budgets should be in the range (0,1).')
-
+        if False in self.rb.budgets.value > 0 or True in self.rb.budgets.value >= 0:
+            raise BudgetsValueSizeNotCorrect(self.rb.budgets.value)
+        
         # Choose number of epochs based on sample size
         if epochs is None:
             epochs = int(2e06 / n)
 
         # Initialize y
         if y_init is None:
-            y = self.budgets / np.std(X, axis=0)
+            y = self.rb.budgets.value / np.std(X, axis=0)
         else:
             y = y_init
 
@@ -147,8 +145,8 @@ class RiskBudgeting:
         if eta_0_t is None:
             eta_0_t = .5
 
-        if self.beta <= 0:
-            raise ValueError('beta should greater than 0.')
+        if self.rb.beta <= 0:
+            raise BetaSizeNotCorrect(self.rb.beta)
 
         # Needed for Polyak-Ruppert averaging
         y_sum = np.zeros(d)
@@ -158,221 +156,221 @@ class RiskBudgeting:
         y_ = [y]
         k = 0
 
-        if self.risk_measure == 'volatility':
-            # Initialize t
-            if t_init is None:
-                t = np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
-            else:
-                t = t_init
-            t_ = [t]
-            for s in range(epochs):
-                np.random.shuffle(X)
-                for i in range(0, n, minibatch_size):
+        # if self.rb.risk_measure == 'volatility':
+        #     # Initialize t
+        #     if t_init is None:
+        #         t = np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
+        #     else:
+        #         t = t_init
+        #     t_ = [t]
+        #     for s in range(epochs):
+        #         np.random.shuffle(X)
+        #         for i in range(0, n, minibatch_size):
 
-                    # Mini-batch
-                    x = X[i:i + minibatch_size]
+        #             # Mini-batch
+        #             x = X[i:i + minibatch_size]
 
-                    # Step size schedule
-                    eta_t = eta_0_t / (1 + k) ** c
-                    eta_y = eta_0_y / (1 + k) ** c
+        #             # Step size schedule
+        #             eta_t = eta_0_t / (1 + k) ** c
+        #             eta_y = eta_0_y / (1 + k) ** c
 
-                    # Gradient
-                    r = np.dot(y, x.T)
-                    grad_t = np.mean(self.beta * -2 * (r - t))
-                    grad_y = np.mean(self.beta *
-                                     2 * (r - t).reshape((x.shape[0], 1)) * x - self.budgets / y -
-                                     self.delta * self.expectation * x, axis=0)
+        #             # Gradient
+        #             r = np.dot(y, x.T)
+        #             grad_t = np.mean(self.rb.beta * -2 * (r - t))
+        #             grad_y = np.mean(self.rb.beta *
+        #                              2 * (r - t).reshape((x.shape[0], 1)) * x - self.rb.budgets / y -
+        #                              self.rb.delta * self.rb.expectation * x, axis=0)
 
-                    # Descent
-                    t = t - eta_t * grad_t
-                    y = y - eta_y * grad_y
-                    y = np.where(y <= 0, proj_y, y)
+        #             # Descent
+        #             t = t - eta_t * grad_t
+        #             y = y - eta_y * grad_y
+        #             y = np.where(y <= 0, proj_y, y)
 
-                    if k + 1 > sum_k_first:
-                        y_sum += y
+        #             if k + 1 > sum_k_first:
+        #                 y_sum += y
 
-                    if store:
-                        y_.append(y)
-                        t_.append(t)
+        #             if store:
+        #                 y_.append(y)
+        #                 t_.append(t)
 
-                    k += 1
+        #             k += 1
 
-        elif self.risk_measure == 'median_absolute_deviation':
-            # Initialize t
-            if t_init is None:
-                t = np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
-            else:
-                t = t_init
-            t_ = [t]
-            for s in range(epochs):
-                np.random.shuffle(X)
-                for i in range(0, n, minibatch_size):
+        # elif self.rb.risk_measure == 'median_absolute_deviation':
+        #     # Initialize t
+        #     if t_init is None:
+        #         t = np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
+        #     else:
+        #         t = t_init
+        #     t_ = [t]
+        #     for s in range(epochs):
+        #         np.random.shuffle(X)
+        #         for i in range(0, n, minibatch_size):
 
-                    # Mini-batch
-                    x = X[i:i + minibatch_size]
+        #             # Mini-batch
+        #             x = X[i:i + minibatch_size]
 
-                    # Step size schedule
-                    eta_t = eta_0_t / (1 + k) ** c
-                    eta_y = eta_0_y / (1 + k) ** c
+        #             # Step size schedule
+        #             eta_t = eta_0_t / (1 + k) ** c
+        #             eta_y = eta_0_y / (1 + k) ** c
 
-                    # Gradient
-                    indicator_pos = (np.dot(y, x.T) - t >= 0).reshape((x.shape[0], 1))
-                    indicator_neg = 1 - indicator_pos
-                    grad_t = np.mean(self.beta * -1 * indicator_pos + indicator_neg)
-                    grad_y = np.mean(self.beta * x * (
-                            indicator_pos - indicator_neg) - self.budgets / y - self.delta * self.expectation * x,
-                                     axis=0)
+        #             # Gradient
+        #             indicator_pos = (np.dot(y, x.T) - t >= 0).reshape((x.shape[0], 1))
+        #             indicator_neg = 1 - indicator_pos
+        #             grad_t = np.mean(self.rb.beta * -1 * indicator_pos + indicator_neg)
+        #             grad_y = np.mean(self.rb.beta * x * (
+        #                     indicator_pos - indicator_neg) - self.rb.budgets / y - self.rb.delta * self.rb.expectation * x,
+        #                              axis=0)
 
-                    # Descent
-                    t = t - eta_t * grad_t
-                    y = y - eta_y * grad_y
-                    y = np.where(y <= 0, proj_y, y)
+        #             # Descent
+        #             t = t - eta_t * grad_t
+        #             y = y - eta_y * grad_y
+        #             y = np.where(y <= 0, proj_y, y)
 
-                    if k + 1 > sum_k_first:
-                        y_sum += y
+        #             if k + 1 > sum_k_first:
+        #                 y_sum += y
 
-                    if store:
-                        y_.append(y)
-                        t_.append(t)
+        #             if store:
+        #                 y_.append(y)
+        #                 t_.append(t)
 
-                    k += 1
+        #             k += 1
 
-        elif self.risk_measure == 'expected_shortfall':
-            # Initialize t
-            if t_init is None:
-                t = -np.dot(y, np.mean(X, axis=0)) + np.dot(np.dot(y, np.cov(X, rowvar=False)), y) * norm.ppf(
-                    self.alpha)
-            else:
-                t = t_init
-            t_ = [t]
-            for s in range(epochs):
-                np.random.shuffle(X)
-                for i in range(0, n, minibatch_size):
+        # elif self.rb.risk_measure == 'expected_shortfall':
+        #     # Initialize t
+        #     if t_init is None:
+        #         t = -np.dot(y, np.mean(X, axis=0)) + np.dot(np.dot(y, np.cov(X, rowvar=False)), y) * norm.ppf(
+        #             self.rb.alpha)
+        #     else:
+        #         t = t_init
+        #     t_ = [t]
+        #     for s in range(epochs):
+        #         np.random.shuffle(X)
+        #         for i in range(0, n, minibatch_size):
 
-                    # Mini-batch
-                    x = X[i:i + minibatch_size]
+        #             # Mini-batch
+        #             x = X[i:i + minibatch_size]
 
-                    # Step size schedule
-                    eta_t = eta_0_t / (1 + k) ** c
-                    eta_y = eta_0_y / (1 + k) ** c
+        #             # Step size schedule
+        #             eta_t = eta_0_t / (1 + k) ** c
+        #             eta_y = eta_0_y / (1 + k) ** c
 
-                    # Gradient
-                    indicator = (-np.dot(y, x.T) - t >= 0).reshape((x.shape[0], 1))
-                    grad_t = np.mean(self.beta * 1 - (1 / (1 - self.alpha)) * indicator)
-                    grad_y = np.mean(self.beta *
-                                     (-x / (
-                                             1 - self.alpha)) * indicator - self.budgets / y + self.delta * self.expectation * x,
-                                     axis=0)
+        #             # Gradient
+        #             indicator = (-np.dot(y, x.T) - t >= 0).reshape((x.shape[0], 1))
+        #             grad_t = np.mean(self.rb.beta * 1 - (1 / (1 - self.rb.alpha)) * indicator)
+        #             grad_y = np.mean(self.rb.beta *
+        #                              (-x / (
+        #                                      1 - self.rb.alpha)) * indicator - self.rb.budgets / y + self.rb.delta * self.rb.expectation * x,
+        #                              axis=0)
 
-                    # Descent
-                    t = t - eta_t * grad_t
-                    y = y - eta_y * grad_y
-                    y = np.where(y <= 0, proj_y, y)
+        #             # Descent
+        #             t = t - eta_t * grad_t
+        #             y = y - eta_y * grad_y
+        #             y = np.where(y <= 0, proj_y, y)
 
-                    if k + 1 > sum_k_first:
-                        y_sum += y
+        #             if k + 1 > sum_k_first:
+        #                 y_sum += y
 
-                    if store:
-                        y_.append(y)
-                        t_.append(t)
+        #             if store:
+        #                 y_.append(y)
+        #                 t_.append(t)
 
-                    k += 1
+        #             k += 1
 
-        elif self.risk_measure == 'power_spectral_risk_measure':
-            # Initialize t
-            if discretize is None:
-                discretize = {'step': 50, 'bounds': (.5, .99)}
-            u = np.linspace(discretize['bounds'][0], discretize['bounds'][1], discretize['step'])
-            w = (self.gamma * u ** (self.gamma - 1))  # power law
-            delta_w = np.diff(w)
-            u = u[1:]
-            if t_init is None:
-                t = -np.dot(y, np.mean(X, axis=0)) + np.dot(np.dot(y, np.cov(X, rowvar=False)), y) * norm.ppf(u)
-            else:
-                t = t_init
-            t_ = [t]
-            for s in range(epochs):
-                np.random.shuffle(X)
-                for i in range(0, n, minibatch_size):
+        # elif self.rb.risk_measure == 'power_spectral_risk_measure':
+        #     # Initialize t
+        #     if discretize is None:
+        #         discretize = {'step': 50, 'bounds': (.5, .99)}
+        #     u = np.linspace(discretize['bounds'][0], discretize['bounds'][1], discretize['step'])
+        #     w = (self.rb.gamma * u ** (self.rb.gamma - 1))  # power law
+        #     delta_w = np.diff(w)
+        #     u = u[1:]
+        #     if t_init is None:
+        #         t = -np.dot(y, np.mean(X, axis=0)) + np.dot(np.dot(y, np.cov(X, rowvar=False)), y) * norm.ppf(u)
+        #     else:
+        #         t = t_init
+        #     t_ = [t]
+        #     for s in range(epochs):
+        #         np.random.shuffle(X)
+        #         for i in range(0, n, minibatch_size):
 
-                    # Mini-batch
-                    x = X[i:i + minibatch_size]
+        #             # Mini-batch
+        #             x = X[i:i + minibatch_size]
 
-                    # Step size schedule
-                    eta_t = eta_0_t / (1 + k) ** c
-                    eta_y = eta_0_y / (1 + k) ** c
+        #             # Step size schedule
+        #             eta_t = eta_0_t / (1 + k) ** c
+        #             eta_y = eta_0_y / (1 + k) ** c
 
-                    # Gradient
-                    indicator = (-np.dot(y, x.T)[:, None] - t >= 0)
-                    grad_t = np.mean(self.beta * delta_w * (1 - u) - delta_w * indicator, axis=0)
-                    grad_y = np.mean(self.beta *
-                                     -np.dot(delta_w, indicator.T).reshape(
-                                         (x.shape[0], 1)) * x - self.budgets / y + self.delta * self.expectation * x,
-                                     axis=0)
+        #             # Gradient
+        #             indicator = (-np.dot(y, x.T)[:, None] - t >= 0)
+        #             grad_t = np.mean(self.rb.beta * delta_w * (1 - u) - delta_w * indicator, axis=0)
+        #             grad_y = np.mean(self.rb.beta *
+        #                              -np.dot(delta_w, indicator.T).reshape(
+        #                                  (x.shape[0], 1)) * x - self.rb.budgets / y + self.rb.delta * self.rb.expectation * x,
+        #                              axis=0)
 
-                    # Descent
-                    t = t - eta_t * grad_t
-                    y = y - eta_y * grad_y
-                    y = np.where(y <= 0, proj_y, y)
+        #             # Descent
+        #             t = t - eta_t * grad_t
+        #             y = y - eta_y * grad_y
+        #             y = np.where(y <= 0, proj_y, y)
 
-                    if k + 1 > sum_k_first:
-                        y_sum += y
+        #             if k + 1 > sum_k_first:
+        #                 y_sum += y
 
-                    if store:
-                        y_.append(y)
-                        t_.append(t)
+        #             if store:
+        #                 y_.append(y)
+        #                 t_.append(t)
 
-                    k += 1
+        #             k += 1
 
-        elif self.risk_measure == 'variantile':
-            # Initialize t
-            if t_init is None:
-                t = -np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
-            else:
-                t = t_init
-            t_ = [t]
-            for s in range(epochs):
-                np.random.shuffle(X)
-                for i in range(0, n, minibatch_size):
-                    # Mini-batch
-                    x = X[i:i + minibatch_size]
-                    # Step size schedule
-                    eta_t = eta_0_t / (1 + k) ** c
-                    eta_y = eta_0_y / (1 + k) ** c
-                    # Gradient
-                    loss = -np.dot(y, x.T)
-                    indicator_pos = (loss - t >= 0).reshape((x.shape[0], 1))
-                    indicator_neg = (loss - t < 0).reshape((x.shape[0], 1))
-                    grad_t = np.mean(
-                        self.beta * -2 * self.alpha * (loss - t) * indicator_pos + -2 * (1 - self.alpha) * (
-                                loss - t) * indicator_neg)
-                    grad_y = np.mean(self.beta *
-                                     -2 * self.alpha * (loss - t).reshape((x.shape[0], 1)) * x * indicator_pos + -2 * (
-                                             1 - self.alpha) * (loss - t).reshape(
-                        (x.shape[0], 1)) * x * indicator_neg - self.budgets / y, axis=0)
+        # elif self.rb.risk_measure == 'variantile':
+        #     # Initialize t
+        #     if t_init is None:
+        #         t = -np.dot(np.dot(y, np.cov(X, rowvar=False)), y)
+        #     else:
+        #         t = t_init
+        #     t_ = [t]
+        #     for s in range(epochs):
+        #         np.random.shuffle(X)
+        #         for i in range(0, n, minibatch_size):
+        #             # Mini-batch
+        #             x = X[i:i + minibatch_size]
+        #             # Step size schedule
+        #             eta_t = eta_0_t / (1 + k) ** c
+        #             eta_y = eta_0_y / (1 + k) ** c
+        #             # Gradient
+        #             loss = -np.dot(y, x.T)
+        #             indicator_pos = (loss - t >= 0).reshape((x.shape[0], 1))
+        #             indicator_neg = (loss - t < 0).reshape((x.shape[0], 1))
+        #             grad_t = np.mean(
+        #                 self.rb.beta * -2 * self.rb.alpha * (loss - t) * indicator_pos + -2 * (1 - self.rb.alpha) * (
+        #                         loss - t) * indicator_neg)
+        #             grad_y = np.mean(self.rb.beta *
+        #                              -2 * self.rb.alpha * (loss - t).reshape((x.shape[0], 1)) * x * indicator_pos + -2 * (
+        #                                      1 - self.rb.alpha) * (loss - t).reshape(
+        #                 (x.shape[0], 1)) * x * indicator_neg - self.rb.budgets / y, axis=0)
 
-                    # Descent
-                    t = t - eta_t * grad_t
-                    y = y - eta_y * grad_y
-                    y = np.where(y <= 0, proj_y, y)
+        #             # Descent
+        #             t = t - eta_t * grad_t
+        #             y = y - eta_y * grad_y
+        #             y = np.where(y <= 0, proj_y, y)
 
-                    if k + 1 > sum_k_first:
-                        y_sum += y
+        #             if k + 1 > sum_k_first:
+        #                 y_sum += y
 
-                    if store:
-                        y_.append(y)
-                        t_.append(t)
+        #             if store:
+        #                 y_.append(y)
+        #                 t_.append(t)
 
-                    k += 1
+        #             k += 1
 
-        else:
-            raise ValueError('The given risk measure is not applicable.')
+        # else:
+        #     raise ValueError('The given risk measure is not applicable.')
 
-        y_sgd = y_sum / int(polyak_ruppert * (epochs * n / minibatch_size))
-        theta_sgd = y_sgd / y_sgd.sum()
+        # y_sgd = y_sum / int(polyak_ruppert * (epochs * n / minibatch_size))
+        # theta_sgd = y_sgd / y_sgd.sum()
 
-        self.x = theta_sgd
+        # self.x = theta_sgd
 
-        if store:
-            self.ys = y_
-            self.ts = t_
+        # if store:
+        #     self.ys = y_
+        #     self.ts = t_
