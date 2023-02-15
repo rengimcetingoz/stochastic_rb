@@ -71,3 +71,13 @@ rb = RiskBudgeting(rb_params = {
 
 rb.solve(params_solver = {"X" : X}, store=False)
 print('ERC Power Spectral Risk Measure:', rb.solution)
+
+rb = RiskBudgeting(rb_params = {
+    "risk_measure" : 'variantile',
+    "budgets" : {
+        "name" : "ERC",
+        },
+    "alpha" : 0.5})
+
+rb.solve(params_solver = {"X" : X}, store=False)
+print('ERC Variantile:', rb.solution)

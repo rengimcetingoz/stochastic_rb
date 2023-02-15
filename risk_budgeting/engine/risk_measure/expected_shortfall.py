@@ -34,7 +34,7 @@ def expected_shortfall_method(
             grad_t = np.mean(rb_params.beta * 1 - (1 / (1 - rb_params.alpha)) * indicator)
             grad_y = np.mean(rb_params.beta *
                                 (-x / (
-                                        1 - rb_params.alpha)) * indicator - rb_params.budgets / solve_params.y + rb_params.delta * rb_params.expectation * x,
+                                        1 - rb_params.alpha)) * indicator - rb_params.budgets.value / solve_params.y + rb_params.delta * rb_params.expectation * x,
                                 axis=0)
 
             # Descent

@@ -3,8 +3,8 @@ import numpy as np
 from typing import Optional
 
 class Discretize(BaseModel):
-    step : int
-    bounds : np.ndarray
+    step : int = None 
+    bounds : np.ndarray = None
     
     class Config:
         arbitrary_types_allowed = True
@@ -19,7 +19,7 @@ class SolveParams(BaseModel):
     eta_0_t : float= None
     c : float= 0.65
     polyak_ruppert:float= 0.2
-    discretize:Discretize= None
+    discretize: Discretize = None
     proj_y:np.ndarray= None
     y_sum : np.ndarray= None
     sum_k_first : int= None
