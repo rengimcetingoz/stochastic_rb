@@ -60,3 +60,14 @@ rb = RiskBudgeting(rb_params = {
 
 rb.solve(params_solver = {"X" : X}, store=False)
 print('ERC Expected Shortfall:', rb.solution)
+
+
+rb = RiskBudgeting(rb_params = {
+    "risk_measure" : 'power_spectral_risk_measure',
+    "budgets" : {
+        "name" : "ERC",
+        },
+    "gamma" : 20.0})
+
+rb.solve(params_solver = {"X" : X}, store=False)
+print('ERC Power Spectral Risk Measure:', rb.solution)
