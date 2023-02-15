@@ -29,5 +29,34 @@ rb = RiskBudgeting(rb_params = {
 # rb.solve(X)
 # print(rb.x)
 
-rb.solve(params_solver = {"X" : X}, store=True)
-print(rb.solution)
+rb.solve(params_solver = {"X" : X}, store=False)
+print('ERC volatility:', rb.solution)
+
+rb = RiskBudgeting(rb_params = {
+    "risk_measure" : 'volatility',
+    "budgets" : {
+        "name" : "CUSTOM",
+        "value": np.array([0.5, 0.3, 0.2])}})
+
+rb.solve(params_solver = {"X" : X}, store=False)
+print('CUSTOM volatility:', rb.solution)
+
+
+rb = RiskBudgeting(rb_params = {
+    "risk_measure" : 'median_absolute_deviation',
+    "budgets" : {
+        "name" : "ERC",
+        }})
+
+rb.solve(params_solver = {"X" : X}, store=False)
+print('ERC MAD:', rb.solution)
+
+rb = RiskBudgeting(rb_params = {
+    "risk_measure" : 'expected_shortfall',
+    "budgets" : {
+        "name" : "ERC",
+        }, 
+    "alpha" : .95})
+
+rb.solve(params_solver = {"X" : X}, store=False)
+print('ERC Expected Shortfall:', rb.solution)

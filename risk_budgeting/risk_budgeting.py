@@ -182,8 +182,15 @@ class RiskBudgeting:
                 self.rb_params, self.solve_params, store=store
             )
 
-        # elif self.rb_params.risk_measure == 'median_absolute_deviation':
-        #     solve_params_update, t_, y_ = risk_measure.median_absolute_deviation_method(self.rb_params, self.solve_params)
+        elif self.rb_params.risk_measure == 'median_absolute_deviation':
+            solve_params_update, t_, y_ = risk_measure.median_absolute_deviation_method(
+                self.rb_params, self.solve_params, store=store
+                )
+
+        elif self.rb_params.risk_measure == 'expected_shortfall':
+            solve_params_update, t_, y_ = risk_measure.expected_shortfall_method(
+                self.rb_params, self.solve_params, store=store
+                )
 
         # elif self.rb_params.risk_measure == 'expected_shortfall':
         #     # Initialize t
