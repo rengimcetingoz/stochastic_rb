@@ -14,7 +14,7 @@ This repository allows to compute the risk budgeting portfolio for the following
 ## Installation
 
 ```bash
-pip install git+https://github.com/rengo-python/stochastic_rb.git
+pip install git+https://github.com/rengimcetingoz/stochastic_rb.git
 ```
 
 ## Usage
