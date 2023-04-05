@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='Risk Budgeting library',
-    url='https://github.com/rengo-python/risk_budgeting',
+    url='https://github.com/rengimcetingoz/risk_budgeting',
     author='Adil Rengim Cetingoz',
     author_email='rengimcetingoz@gmail.com',
     packages=['risk_budgeting'],
